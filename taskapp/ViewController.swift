@@ -10,33 +10,81 @@ import UIKit
 import RealmSwift
 import UserNotifications
 
-class ViewController: UIViewController, UITableViewDelegate,UITableViewDataSource {
+class ViewController: UIViewController, UITableViewDelegate,UITableViewDataSource, UISearchBarDelegate {
     @IBOutlet weak var tableView: UITableView!
     
+    var searchBar: UISearchBar!
     //Realmインスタンスを取得する
     let realm = try! Realm()
-    
     // DB内のタスクが格納されるリスト。
     // 日付近い順\順でソート：降順
     // 以降内容をアップデートするとリスト内は自動的に更新される。
     var taskArray = try! Realm().objects(Task.self).sorted(byKeyPath: "date", ascending: false)
+   
+    var searchArray: Results<Task>!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
         tableView.delegate = self
         tableView.dataSource = self
+        
+        setupSearchBar()
     }
+    //サーチバーのセット
+    func setupSearchBar() {
+        if let navigationBarFrame = navigationController?.navigationBar.bounds {
+            let searchBar: UISearchBar = UISearchBar(frame: navigationBarFrame)
+            searchBar.delegate = self
+            searchBar.placeholder = "カテゴリで絞る"
+            searchBar.tintColor = UIColor.gray
+            searchBar.keyboardType = UIKeyboardType.default
+            navigationItem.titleView = searchBar
+            navigationItem.titleView?.frame = searchBar.frame
+            self.searchBar = searchBar
+        }
+    }
+    //検索ボタン押下時( == の代わりにCONTAINSなども使える）
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        self.view.endEditing(true)
+        searchBar.showsCancelButton = true
+        let predicate = NSPredicate(format: "category == %@", String(searchBar.text!))
+        self.searchArray = try! Realm().objects(Task.self).filter(predicate).sorted(byKeyPath: "date", ascending: false)
+            self.tableView.reloadData()
+    }
+    //キャンセルボタン押下時
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+        searchBar.showsCancelButton = false
+        self.view.endEditing(true)
+        searchBar.text = ""
+        self.tableView.reloadData()
+    }
+    //テキストフィールド入力開始時
+    func searchBarShouldBeginEditing(_ searchBar: UISearchBar) -> Bool {
+        searchBar.showsCancelButton = true
+        return true
+    }
+    
+    
     //MARK: UITableViewDataSourceプロトコルのメソッド
     //データの数(=セルの数）を返すメソッド
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return taskArray.count
+        if searchBar.text != "" {
+            return searchArray.count
+        } else {
+            return taskArray.count
+        }
     }
     //各Cellの内容を返す(表示する）indexPathが何行目かメソッド
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
+        var task : Task
+        if searchBar.text != "" {
+            task = searchArray[indexPath.row]
+        } else {
         // Cellに値を設定する、日付の降順で並ぶ
-        let task = taskArray[indexPath.row]
+            task = taskArray[indexPath.row] }
+        
         cell.textLabel?.text = task.title
         
         let formatter = DateFormatter()
